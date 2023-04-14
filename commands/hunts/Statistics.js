@@ -6,6 +6,7 @@ const {
   DISCORD,
   CLUE,
   HUNT,
+  MESSAGING,
 } = require("../../Constants");
 
 module.exports = {
@@ -75,9 +76,7 @@ module.exports = {
       }
     } catch (error) {
       console.error(error);
-      interaction.reply(
-        "I'm a little birdbrained right now, sorry! Try back later."
-      );
+      interaction.reply(MESSAGING.UNKNOWN_ERROR);
     }
   },
 };

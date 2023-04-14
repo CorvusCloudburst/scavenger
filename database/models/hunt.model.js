@@ -1,4 +1,4 @@
-const { HUNT, DISCORD} = require("../../Constants");
+const { HUNT, DISCORD } = require("../../Constants");
 module.exports = function (sequelize, DataTypes) {
   return sequelize.define(
     "Hunt",
@@ -10,12 +10,12 @@ module.exports = function (sequelize, DataTypes) {
         autoIncrement: true,
         field: HUNT.COLUMNS.ID,
       },
-        guild: {
-            type: DataTypes.STRING,
-            allowNull: false,
-            unique: false,
-            field: DISCORD.GUILD,
-        },
+      guild: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: false,
+        field: DISCORD.GUILD,
+      },
       title: {
         type: DataTypes.STRING,
         allowNull: true,
@@ -32,16 +32,16 @@ module.exports = function (sequelize, DataTypes) {
         allowNull: false,
         field: HUNT.COLUMNS.STATUS,
       },
-        thumbnail: {
-            type: DataTypes.STRING,
-            allowNull: true,
-            field: DISCORD.EMBED.THUMBNAIL,
-        },
-        image: {
-            type: DataTypes.STRING,
-            allowNull: true,
-            field: DISCORD.EMBED.IMAGE,
-        },
+      thumbnail: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: DISCORD.EMBED.THUMBNAIL,
+      },
+      image: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: DISCORD.EMBED.IMAGE,
+      },
     },
     {
       timestamps: false,

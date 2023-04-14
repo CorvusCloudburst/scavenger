@@ -1,9 +1,15 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { models } = require("../../database");
-const { COMMANDS, SUBCOMMANDS, CLUE } = require("../../Constants");
+const { COMMANDS, SUBCOMMANDS, CLUE, MESSAGING } = require("../../Constants");
 const { ClueEmbed } = require("../../components/ClueEmbed");
 const { NotificationEmbed } = require("../../components/NotificationEmbed");
 const { getUserHandle, getAvatarImageUrl } = require("../../DiscordTools");
+
+/*---------------------------------------------------------------------------------
+ *  TODO:
+ *   - Ensure that clues may only be guessed whilw their hunt is active,
+ *   as inactive / ended hunts will preserve their state.
+ *--------------------------------------------------------------------------------*/
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -286,11 +292,12 @@ module.exports = {
           } else if (huntId) {
             // Delete all clues in hunt
             const cluesByHunt = await hunt.getClues();
-            cluesByHunt.forEach((clue) => {
-              if (clue.id !== clueId) {
-                clue.destroy();
+            for (const deletedClue in cluesByHunt) {
+              if (deletedClue.id !== clueId) {
+                await deletedClue.destroy();
               }
-            });
+            }
+
             await interaction.reply(`Deleted all clues in ${hunt.title}.`);
           } else if (clueId) {
             // Delete individual clue
@@ -301,9 +308,7 @@ module.exports = {
       }
     } catch (error) {
       console.error(error);
-      interaction.reply(
-        "I'm a little birdbrained right now, sorry! Try back later."
-      );
+      interaction.reply(MESSAGING.UNKNOWN_ERROR);
     }
   },
 };

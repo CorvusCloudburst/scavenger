@@ -95,6 +95,10 @@ const ICONS = {
   SOLVE: "",
 };
 
+const MESSAGING = {
+  UNKNOWN_ERROR: "I'm a little birdbrained right now, sorry! Try back later.",
+};
+
 module.exports = {
   COMMANDS,
   SUBCOMMANDS,
@@ -104,4 +108,5 @@ module.exports = {
   DISCORD,
   COLORS,
   ICONS,
+  MESSAGING,
 };
