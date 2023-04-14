@@ -6,8 +6,6 @@ const {
   HUNT,
   CLUE,
   DISCORD,
-  COLORS,
-  ICONS,
 } = require("../../Constants");
 const { HuntEmbed } = require("../../components/HuntEmbed");
 const { NotificationEmbed } = require("../../components/NotificationEmbed");
@@ -127,105 +125,114 @@ module.exports = {
    *  RESPONSES
    *--------------------------------------------------------------------------------*/
   async execute(interaction) {
-    const subcommand = interaction.options.getSubcommand();
-    /*-----------------------------------------------------
-     *  RESPONSE: create
-     *-----------------------------------------------------*/
-    if (subcommand === SUBCOMMANDS.HUNT.CREATE) {
-      const title = interaction.options.getString(HUNT.COLUMNS.TITLE);
-      const hunt = await models.Hunt.create({
-        title: title,
-        description: interaction.options.getString(HUNT.COLUMNS.DESCRIPTION),
-        status: HUNT.STATUS.INACTIVE,
-        guild: interaction.guild.id,
-        thumbnail: interaction.options.getString(DISCORD.EMBED.THUMBNAIL),
-        image: interaction.options.getString(DISCORD.EMBED.IMAGE),
-      });
-      if (!hunt.title) {
-        hunt.title = `Hunt ${hunt.id}`;
-      }
-      await hunt.save();
-      const announcementEmbed = NotificationEmbed({
-        message: `Created new hunt: ${hunt.title}!`,
-      });
-      const responseEmbed = await HuntEmbed(hunt);
-      await interaction.reply({ embeds: [announcementEmbed, responseEmbed] });
+    try {
+      const subcommand = interaction.options.getSubcommand();
       /*-----------------------------------------------------
-       *  RESPONSE: begin
+       *  RESPONSE: create
        *-----------------------------------------------------*/
-    } else if (subcommand === SUBCOMMANDS.HUNT.BEGIN) {
-      const id = interaction.options.getString(HUNT.COLUMNS.ID);
-      const hunt = await models.Hunt.findByPk(id);
-      await beginHunt(hunt, interaction);
-      /*-----------------------------------------------------
-       *  RESPONSE: end
-       *-----------------------------------------------------*/
-    } else if (subcommand === SUBCOMMANDS.HUNT.END) {
-      const id = interaction.options.getInteger(HUNT.COLUMNS.ID);
-      const hunt = await models.Hunt.findByPk(id);
-      hunt.set({ status: HUNT.STATUS.INACTIVE });
-      await hunt.save();
-      const responseEmbed = await HuntEmbed(hunt);
-      await interaction.reply({ embeds: [responseEmbed] });
-      /*-----------------------------------------------------
-       *  COMMAND: delete
-       *-----------------------------------------------------*/
-    } else if (subcommand === SUBCOMMANDS.HUNT.DELETE) {
-      const purge = interaction.options.getBoolean("purge");
-      const id = interaction.options.getInteger(HUNT.COLUMNS.ID);
-      const guildHunts = await models.Hunt.findAll({
-        where: { guild: interaction.member.guild.id },
-        include: models.Clue,
-      });
-
-      // Find the earmarked hunt, if provided.
-      const hunt = id ? guildHunts.find((hunt) => hunt.id === id) : null;
-      const huntName = hunt?.title;
-      if (id && !hunt) {
-        // Fails gracefully if a hunt is earmarked that can't be found.
-        await interaction.reply(
-          `Could not find a hunt in this server with ID ${id}.`
-        );
-      } else {
-        if (purge && id) {
-          // Delete all server hunts except the specified one
-          guildHunts.forEach((hunt) => {
-            if (hunt.id !== id) {
-              hunt.destroy();
-            }
-          });
-          await interaction.reply(`Deleted all hunts except for ${huntName}.`);
-        } else if (id) {
-          // Delete the specified hunt
-          await hunt.destroy();
-          await interaction.reply(`Deleted ${huntName}.`);
-        } else if (purge) {
-          // Delete all server hunts
-          guildHunts.forEach((hunt) => hunt.destroy());
-          await interaction.reply(`Deleted all hunts.`);
+      if (subcommand === SUBCOMMANDS.HUNT.CREATE) {
+        const title = interaction.options.getString(HUNT.COLUMNS.TITLE);
+        const hunt = await models.Hunt.create({
+          title: title,
+          description: interaction.options.getString(HUNT.COLUMNS.DESCRIPTION),
+          status: HUNT.STATUS.INACTIVE,
+          guild: interaction.guild.id,
+          thumbnail: interaction.options.getString(DISCORD.EMBED.THUMBNAIL),
+          image: interaction.options.getString(DISCORD.EMBED.IMAGE),
+        });
+        if (!hunt.title) {
+          hunt.title = `Hunt ${hunt.id}`;
         }
-      }
-      /*-----------------------------------------------------
-       *  RESPONSE: list
-       *-----------------------------------------------------*/
-    } else if (subcommand === SUBCOMMANDS.HUNT.LIST) {
-      const id = interaction.options.getInteger(HUNT.COLUMNS.ID);
-      if (id) {
-        // Fetch just the one hunt
+        await hunt.save();
+        const announcementEmbed = NotificationEmbed({
+          message: `Created new hunt: ${hunt.title}!`,
+        });
+        const responseEmbed = await HuntEmbed(hunt);
+        await interaction.reply({ embeds: [announcementEmbed, responseEmbed] });
+        /*-----------------------------------------------------
+         *  RESPONSE: begin
+         *-----------------------------------------------------*/
+      } else if (subcommand === SUBCOMMANDS.HUNT.BEGIN) {
+        const id = interaction.options.getString(HUNT.COLUMNS.ID);
         const hunt = await models.Hunt.findByPk(id);
-        const embed = await HuntEmbed(hunt);
-        // TODO: Replace with a more detailed embed or add relevant clue embeds to this call.
-        await interaction.reply({ embeds: [embed] });
-      } else {
-        // Fetch all hunts.
-        const hunts = await models.Hunt.findAll({ include: models.Clue });
-        const embeds = [];
-        for (const hunt of hunts) {
-          const view = await HuntEmbed(hunt);
-          embeds.push(view);
+        await beginHunt(hunt, interaction);
+        /*-----------------------------------------------------
+         *  RESPONSE: end
+         *-----------------------------------------------------*/
+      } else if (subcommand === SUBCOMMANDS.HUNT.END) {
+        const id = interaction.options.getInteger(HUNT.COLUMNS.ID);
+        const hunt = await models.Hunt.findByPk(id);
+        hunt.set({ status: HUNT.STATUS.INACTIVE });
+        await hunt.save();
+        const responseEmbed = await HuntEmbed(hunt);
+        await interaction.reply({ embeds: [responseEmbed] });
+        /*-----------------------------------------------------
+         *  COMMAND: delete
+         *-----------------------------------------------------*/
+      } else if (subcommand === SUBCOMMANDS.HUNT.DELETE) {
+        const purge = interaction.options.getBoolean("purge");
+        const id = interaction.options.getInteger(HUNT.COLUMNS.ID);
+        const guildHunts = await models.Hunt.findAll({
+          where: { guild: interaction.member.guild.id },
+          include: models.Clue,
+        });
+
+        // Find the earmarked hunt, if provided.
+        const hunt = id ? guildHunts.find((hunt) => hunt.id === id) : null;
+        const huntName = hunt?.title;
+        if (id && !hunt) {
+          // Fails gracefully if a hunt is earmarked that can't be found.
+          await interaction.reply(
+            `Could not find a hunt in this server with ID ${id}.`
+          );
+        } else {
+          if (purge && id) {
+            // Delete all server hunts except the specified one
+            guildHunts.forEach((hunt) => {
+              if (hunt.id !== id) {
+                hunt.destroy();
+              }
+            });
+            await interaction.reply(
+              `Deleted all hunts except for ${huntName}.`
+            );
+          } else if (id) {
+            // Delete the specified hunt
+            await hunt.destroy();
+            await interaction.reply(`Deleted ${huntName}.`);
+          } else if (purge) {
+            // Delete all server hunts
+            guildHunts.forEach((hunt) => hunt.destroy());
+            await interaction.reply(`Deleted all hunts.`);
+          }
         }
-        await interaction.reply({ embeds: embeds });
+        /*-----------------------------------------------------
+         *  RESPONSE: list
+         *-----------------------------------------------------*/
+      } else if (subcommand === SUBCOMMANDS.HUNT.LIST) {
+        const id = interaction.options.getInteger(HUNT.COLUMNS.ID);
+        if (id) {
+          // Fetch just the one hunt
+          const hunt = await models.Hunt.findByPk(id);
+          const embed = await HuntEmbed(hunt);
+          // TODO: Replace with a more detailed embed or add relevant clue embeds to this call.
+          await interaction.reply({ embeds: [embed] });
+        } else {
+          // Fetch all hunts.
+          const hunts = await models.Hunt.findAll({ include: models.Clue });
+          const embeds = [];
+          for (const hunt of hunts) {
+            const view = await HuntEmbed(hunt);
+            embeds.push(view);
+          }
+          await interaction.reply({ embeds: embeds });
+        }
       }
+    } catch (error) {
+      console.error(error);
+      interaction.reply(
+        "I'm a little birdbrained right now, sorry! Try back later."
+      );
     }
   },
 };
