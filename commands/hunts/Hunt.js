@@ -122,7 +122,6 @@ module.exports = {
       }
       await hunt.save();
       const announcementEmbed = NotificationEmbed({
-        color: COLORS.STATUS.ACTIVE,
         message: `Created new hunt: ${hunt.title}!`,
       });
       const responseEmbed = await HuntEmbed(hunt);
@@ -183,15 +182,11 @@ async function beginHunt(hunt, interaction) {
     unlockedClue.save();
   });
   const announcementEmbed = NotificationEmbed({
-    color: COLORS.STATUS.ACTIVE,
     message: `${hunt.title} has commenced!`,
-    icon: ICONS.BANGBANG,
   });
   const responseEmbed = await HuntEmbed(hunt);
   const clueUnlockEmbed = NotificationEmbed({
-    color: COLORS.STATUS.ACTIVE,
     message: `${cluesToUnlock.length} new clue${cluesToUnlock.length > 1 ? 's' : ''} unlocked.`,
-    icon: ICONS.UNLOCK,
   });
   const embeds = [announcementEmbed, responseEmbed];
   if (cluesToUnlock.length > 0) {
