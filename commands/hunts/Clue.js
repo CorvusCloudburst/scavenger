@@ -1,15 +1,15 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { models } = require("../../database");
-const { COMMANDS, SUBCOMMANDS, CLUE, COLORS, ICONS} = require("../../Constants");
-const {ClueEmbed} = require("../../components/ClueEmbed");
-const {NotificationEmbed} = require("../../components/NotificationEmbed");
-const {getUserHandle, getAvatarImageUrl, getAvatar} = require("../../DiscordTools");
+const { COMMANDS, SUBCOMMANDS, CLUE } = require("../../Constants");
+const { ClueEmbed } = require("../../components/ClueEmbed");
+const { NotificationEmbed } = require("../../components/NotificationEmbed");
+const { getUserHandle, getAvatarImageUrl } = require("../../DiscordTools");
 
 module.exports = {
   data: new SlashCommandBuilder()
-/*---------------------------------------------------------------------------------
- *  COMMANDS
- *--------------------------------------------------------------------------------*/
+    /*---------------------------------------------------------------------------------
+     *  COMMANDS
+     *--------------------------------------------------------------------------------*/
     .setName(COMMANDS.CLUE)
     .setDescription("Manage your hunt's clues.")
     /*-----------------------------------------------------
@@ -75,10 +75,56 @@ module.exports = {
             .setDescription("Your guess. (required)")
             .setRequired(true)
         )
+    )
+    /*-----------------------------------------------------
+     *  COMMAND: list
+     *-----------------------------------------------------*/
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName(SUBCOMMANDS.CLUE.LIST)
+        .setDescription("Display all available clues on this server.")
+        .addIntegerOption((option) =>
+          option
+            .setName(CLUE.COLUMNS.ID)
+            .setDescription("Display a clue. (optional)")
+            .setRequired(false)
+        )
+        .addIntegerOption((option) =>
+          option
+            .setName(CLUE.COLUMNS.HUNT)
+            .setDescription("View all clues in a hunt. (optional)")
+            .setRequired(false)
+        )
+    )
+    /*-----------------------------------------------------
+     *  COMMAND: delete
+     *-----------------------------------------------------*/
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName(SUBCOMMANDS.CLUE.DELETE)
+        .setDescription("Delete clues.")
+        .addIntegerOption((option) =>
+          option
+            .setName(CLUE.COLUMNS.ID)
+            .setDescription("Delete a clue. (optional)")
+            .setRequired(false)
+        )
+        .addIntegerOption((option) =>
+          option
+            .setName(CLUE.COLUMNS.HUNT)
+            .setDescription("Delete all clues in a hunt. (optional)")
+            .setRequired(false)
+        )
+        .addBooleanOption((option) =>
+          option
+            .setName("purge")
+            .setDescription("Delete all clues across all hunts on this server.")
+            .setRequired(false)
+        )
     ),
-/*---------------------------------------------------------------------------------
- *  RESPONSES
- *--------------------------------------------------------------------------------*/
+  /*---------------------------------------------------------------------------------
+   *  RESPONSES
+   *--------------------------------------------------------------------------------*/
   async execute(interaction) {
     const subcommand = interaction.options.getSubcommand();
     /*-----------------------------------------------------
@@ -89,8 +135,14 @@ module.exports = {
       const huntId = interaction.options.getInteger(CLUE.COLUMNS.HUNT, true);
       const title = interaction.options.getString(CLUE.COLUMNS.TITLE, false);
       const text = interaction.options.getString(CLUE.COLUMNS.TEXT, false);
-      const unlockedBy = interaction.options.getInteger(CLUE.COLUMNS.UNLOCKED_BY, false);
-      const password = interaction.options.getString(CLUE.COLUMNS.PASSWORD, false);
+      const unlockedBy = interaction.options.getInteger(
+        CLUE.COLUMNS.UNLOCKED_BY,
+        false
+      );
+      const password = interaction.options.getString(
+        CLUE.COLUMNS.PASSWORD,
+        false
+      );
 
       // Create clue
       const hunt = await models.Hunt.findByPk(huntId);
@@ -110,7 +162,6 @@ module.exports = {
           ? await models.Clue.findByPk(unlockedBy)
           : undefined;
         blockingClue.addUnlocks(clue);
-        console.log(`${clue.title} is be blocked by ${blockingClue.title}`);
       }
 
       await clue.save();
@@ -120,7 +171,7 @@ module.exports = {
         message: `Created new clue: ${clue.title}!`,
       });
       const responseEmbed = await ClueEmbed(clue);
-      await interaction.reply({embeds: [announcementEmbed, responseEmbed]});
+      await interaction.reply({ embeds: [announcementEmbed, responseEmbed] });
       /*-----------------------------------------------------
        *  RESPONSE: guess
        *-----------------------------------------------------*/
@@ -140,10 +191,107 @@ module.exports = {
         await solveClue(clue, interaction);
       } else {
         const notificationEmbed = NotificationEmbed({
-          message: `${getUserHandle(interaction)} failed to guess the password. Too bad!`,
+          message: `${getUserHandle(
+            interaction
+          )} failed to guess the password. Too bad!`,
           icon: getAvatarImageUrl(interaction.member),
         });
-        await interaction.reply({embeds: [notificationEmbed]});
+        await interaction.reply({ embeds: [notificationEmbed] });
+      }
+      /*-----------------------------------------------------
+       *  RESPONSE: list
+       *-----------------------------------------------------*/
+    } else if (subcommand === SUBCOMMANDS.CLUE.LIST) {
+      const clueId = interaction.options.getInteger(CLUE.COLUMNS.ID, false);
+      const huntId = interaction.options.getInteger(CLUE.COLUMNS.HUNT, false);
+      const clues = [];
+
+      if (clueId) {
+        // Fetch one clue
+        const clue = await models.Clue.findByPk(clueId);
+        clues.push(clue);
+      } else if (huntId) {
+        // Scope by hunt
+        const huntClues = await models.Clue.findAll({
+          where: { hunt_id: huntId },
+        });
+        huntClues.forEach((clue) => clues.push(clue));
+      } else {
+        // All clues on server.
+        const serverClues = await models.Clue.findAll({
+          include: { model: models.Hunt, required: true },
+        });
+        for (const clue of serverClues) {
+          const hunt = await clue.getHunt();
+          if (hunt.guild === interaction.member.guild.id) {
+            clues.push(clue);
+          }
+        }
+      }
+
+      // Check clues were found
+      if (!clues.length) {
+        await interaction.reply(
+          "Could not find any matching clues on this server. Try widening your search!"
+        );
+      } else {
+        // Generate embeds
+        const clueEmbeds = [];
+        for (const clue of clues) {
+          const embed = await ClueEmbed(clue);
+          clueEmbeds.push(embed);
+        }
+        // Reply
+        await interaction.reply({ embeds: clueEmbeds });
+      }
+      /*-----------------------------------------------------
+       *  RESPONSE: delete
+       *-----------------------------------------------------*/
+    } else if (subcommand === SUBCOMMANDS.CLUE.DELETE) {
+      const clueId = interaction.options.getInteger(CLUE.COLUMNS.ID, false);
+      const huntId = interaction.options.getInteger(CLUE.COLUMNS.HUNT, false);
+      const purge = interaction.options.getBoolean("purge");
+
+      console.log(clueId);
+
+      const earmarkedClue = clueId ? await models.Clue.findByPk(clueId) : null;
+      const clueTitle = earmarkedClue?.title;
+
+      // Ensure we're only modifying hunts from this server
+      const hunt = huntId ? await models.Hunt.findByPk(huntId) : null;
+      if (hunt && hunt?.guild !== interaction.member.guild.id) {
+        await interaction.reply(`${hunt.title} is managed by another server.`);
+      } else {
+        if (purge) {
+          // Delete all clues on server
+          const serverClues = await models.Clue.findAll({
+            include: { model: models.Hunt, required: true },
+          });
+          for (const clue of serverClues) {
+            const clueHunt = await clue.getHunt();
+            if (
+              clueHunt.guild === interaction.member.guild.id &&
+              clue.id !== clueId &&
+              clue.hunt_id !== huntId
+            ) {
+              await clue.destroy();
+            }
+          }
+          await interaction.reply(`Deleted all clues.`);
+        } else if (huntId) {
+          // Delete all clues in hunt
+          const cluesByHunt = await hunt.getClues();
+          cluesByHunt.forEach((clue) => {
+            if (clue.id !== clueId) {
+              clue.destroy();
+            }
+          });
+          await interaction.reply(`Deleted all clues in ${hunt.title}.`);
+        } else if (clueId) {
+          // Delete individual clue
+          await earmarkedClue.destroy();
+          await interaction.reply(`${clueTitle} has been deleted.`);
+        }
       }
     }
   },
@@ -176,7 +324,9 @@ async function solveClue(clue, interaction) {
   });
   const clueEmbed = await ClueEmbed(clue);
   const clueUnlockEmbed = NotificationEmbed({
-    message: `${cluesToUnlock.length} new clue${cluesToUnlock.length > 1 ? 's' : ''} unlocked.`,
+    message: `${cluesToUnlock.length} new clue${
+      cluesToUnlock.length > 1 ? "s" : ""
+    } unlocked.`,
   });
   const embeds = [notificationEmbed, clueEmbed];
   if (cluesToUnlock.length > 0) {
@@ -184,7 +334,7 @@ async function solveClue(clue, interaction) {
   }
 
   // Respond
-  await interaction.reply({embeds: embeds});
+  await interaction.reply({ embeds: embeds });
 }
 
 async function documentGuess(clue, password, interaction) {
