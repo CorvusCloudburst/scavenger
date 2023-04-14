@@ -10,7 +10,9 @@ const HuntEmbed = async function (hunt) {
     const solvedClues = await models.Clue.findAll({
         where: {status: CLUE.STATUS.SOLVED, hunt_id: hunt.id},
     });
-    const color = hunt.status === HUNT.STATUS.ACTIVE ? COLORS.STATUS.ACTIVE : COLORS.STATUS.INACTIVE;
+    const color = hunt.status === HUNT.STATUS.ACTIVE
+        ? COLORS.HUNT_STATUS.ACTIVE
+        : COLORS.HUNT_STATUS.INACTIVE;
 
     return {
         author: {
@@ -21,7 +23,7 @@ const HuntEmbed = async function (hunt) {
         title: hunt.title,
         description: hunt.description,
         thumbnail: {
-            url: hunt.thumbnail ?? ICONS.MAGNIFY,
+            url: hunt.thumbnail ?? ICONS.HUNT,
         },
         image: {
             url: hunt.image,

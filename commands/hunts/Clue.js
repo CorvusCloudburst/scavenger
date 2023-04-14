@@ -1,6 +1,9 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { models } = require("../../database");
-const { COMMANDS, SUBCOMMANDS, CLUE } = require("../../Constants");
+const { COMMANDS, SUBCOMMANDS, CLUE, COLORS, ICONS} = require("../../Constants");
+const {ClueEmbed} = require("../../components/ClueEmbed");
+const {NotificationEmbed} = require("../../components/NotificationEmbed");
+const {getUserHandle, getAvatarImageUrl, getAvatar} = require("../../DiscordTools");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -82,20 +85,15 @@ module.exports = {
      *  RESPONSE: create
      *-----------------------------------------------------*/
     if (subcommand === SUBCOMMANDS.CLUE.CREATE) {
+      // Fetch options
       const huntId = interaction.options.getInteger(CLUE.COLUMNS.HUNT, true);
       const title = interaction.options.getString(CLUE.COLUMNS.TITLE, false);
       const text = interaction.options.getString(CLUE.COLUMNS.TEXT, false);
-      const unlockedBy = interaction.options.getInteger(
-        CLUE.COLUMNS.UNLOCKED_BY,
-        false
-      );
-      const password = interaction.options.getString(
-        CLUE.COLUMNS.PASSWORD,
-        false
-      );
+      const unlockedBy = interaction.options.getInteger(CLUE.COLUMNS.UNLOCKED_BY, false);
+      const password = interaction.options.getString(CLUE.COLUMNS.PASSWORD, false);
 
+      // Create clue
       const hunt = await models.Hunt.findByPk(huntId);
-
       const clue = await hunt.createClue({
         title: title,
         text: text,
@@ -106,7 +104,7 @@ module.exports = {
         clue.title = `Clue ${clue.id}`;
       }
 
-      // Set up clue blocking
+      // Lock this clue behind another clue, if specified
       if (unlockedBy) {
         const blockingClue = unlockedBy
           ? await models.Clue.findByPk(unlockedBy)
@@ -116,9 +114,13 @@ module.exports = {
       }
 
       await clue.save();
-      await interaction.reply(
-        `Created new clue with name ${clue.title} in hunt ${hunt.title}.`
-      );
+
+      // Respond
+      const announcementEmbed = NotificationEmbed({
+        message: `Created new clue: ${clue.title}!`,
+      });
+      const responseEmbed = await ClueEmbed(clue);
+      await interaction.reply({embeds: [announcementEmbed, responseEmbed]});
       /*-----------------------------------------------------
        *  RESPONSE: guess
        *-----------------------------------------------------*/
@@ -130,21 +132,18 @@ module.exports = {
       );
 
       const clue = await models.Clue.findByPk(clueId);
-      await documentGuess(clue, password, interaction);
+      await documentGuess(clue, password, interaction); // TODO: Consider making public shaming (aka guess tracking) optional
 
       if (clue.status === CLUE.STATUS.LOCKED) {
         await interaction.reply(`You need to unlock that clue first!`);
       } else if (isCorrectGuess(clue, password)) {
-        await interaction.reply(
-          `${interaction.user.toString()} solved ${
-            clue.title
-          } with the password!`
-        );
         await solveClue(clue, interaction);
       } else {
-        await interaction.reply(
-          `${interaction.user.toString()} failed to guess the password. Too bad!`
-        );
+        const notificationEmbed = NotificationEmbed({
+          message: `${getUserHandle(interaction)} failed to guess the password. Too bad!`,
+          icon: getAvatarImageUrl(interaction.member),
+        });
+        await interaction.reply({embeds: [notificationEmbed]});
       }
     }
   },
@@ -154,8 +153,11 @@ module.exports = {
  *  HELPER FUNCTIONS
  *--------------------------------------------------------------------------------*/
 async function solveClue(clue, interaction) {
+  // Update status
   clue.status = CLUE.STATUS.SOLVED;
   clue.save();
+
+  // Unlock clues that were waiting on this one.
   const cluesToUnlock = await models.Clue.findAll({
     where: {
       unlocked_by: clue.id,
@@ -166,12 +168,27 @@ async function solveClue(clue, interaction) {
     unlockedClue.status = CLUE.STATUS.UNLOCKED;
     unlockedClue.save();
   });
+
+  // Generate response
+  const notificationEmbed = NotificationEmbed({
+    message: `${clue.title} has been solved by ${getUserHandle(interaction)}!`,
+    icon: getAvatarImageUrl(interaction.member),
+  });
+  const clueEmbed = await ClueEmbed(clue);
+  const clueUnlockEmbed = NotificationEmbed({
+    message: `${cluesToUnlock.length} new clue${cluesToUnlock.length > 1 ? 's' : ''} unlocked.`,
+  });
+  const embeds = [notificationEmbed, clueEmbed];
   if (cluesToUnlock.length > 0) {
-    await interaction.followUp(`${cluesToUnlock.length} new clues unlocked.`);
+    embeds.push(clueUnlockEmbed);
   }
+
+  // Respond
+  await interaction.reply({embeds: embeds});
 }
 
 async function documentGuess(clue, password, interaction) {
+  // Save guesses to database for public shaming purposes
   const guess = await clue.createGuess({
     user: interaction.user.toString(),
     password: password,
