@@ -96,7 +96,8 @@ const ICONS = {
 };
 
 const MESSAGING = {
-  UNKNOWN_ERROR: "I'm a little birdbrained right now, sorry! Try back later.",
+  UNKNOWN_ERROR:
+    "I'm a little birdbrained right now, sorry! Please tell Corvus I'm not feeling well.",
 };
 
 module.exports = {
