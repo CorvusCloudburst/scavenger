@@ -6,6 +6,7 @@ const {
   CLUE,
   MESSAGING,
   ICONS,
+  HUNT,
 } = require("../../Constants");
 const { ClueEmbed } = require("../../components/ClueEmbed");
 const { NotificationEmbed } = require("../../components/NotificationEmbed");
@@ -13,7 +14,7 @@ const { getUserHandle, getAvatarImageUrl } = require("../../DiscordTools");
 
 /*---------------------------------------------------------------------------------
  *  TODO:
- *   - Ensure that clues may only be guessed whilw their hunt is active,
+ *   - Ensure that clues may only be guessed while their hunt is active,
  *   as inactive / ended hunts will preserve their state.
  *--------------------------------------------------------------------------------*/
 
@@ -35,7 +36,7 @@ module.exports = {
           option
             .setName(CLUE.COLUMNS.HUNT)
             .setDescription(
-              "The id of the hunt this clue should be added to. (required)"
+              "The ID of the hunt this clue should be added to. (required)"
             )
             .setRequired(true)
         )
@@ -197,9 +198,16 @@ module.exports = {
         );
 
         const clue = await models.Clue.findByPk(clueId);
+        const hunt = await clue.getHunt();
+
         await documentGuess(clue, password, interaction); // TODO: Consider making public shaming (aka guess tracking) optional
 
-        if (clue.status === CLUE.STATUS.LOCKED) {
+        // You can only guess clues in active hunts.
+        if (hunt.status !== HUNT.STATUS.ACTIVE) {
+          await interaction.reply(
+            "That clue belongs to an inactive hunt. Either it hasn't begun yet, or it has already ended! To begin a hunt, use `/hunt begin {id}` ."
+          );
+        } else if (clue.status === CLUE.STATUS.LOCKED) {
           await interaction.reply(`You need to unlock that clue first!`);
         } else if (isCorrectGuess(clue, password)) {
           await solveClue(clue, interaction);
