@@ -1,6 +1,12 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { models } = require("../../database");
-const { COMMANDS, SUBCOMMANDS, CLUE, MESSAGING } = require("../../Constants");
+const {
+  COMMANDS,
+  SUBCOMMANDS,
+  CLUE,
+  MESSAGING,
+  ICONS,
+} = require("../../Constants");
 const { ClueEmbed } = require("../../components/ClueEmbed");
 const { NotificationEmbed } = require("../../components/NotificationEmbed");
 const { getUserHandle, getAvatarImageUrl } = require("../../DiscordTools");
@@ -176,6 +182,7 @@ module.exports = {
         // Respond
         const announcementEmbed = NotificationEmbed({
           message: `Created new clue: ${clue.title}!`,
+          icon: ICONS.SPARKLES.GREEN,
         });
         const responseEmbed = await ClueEmbed(clue);
         await interaction.reply({ embeds: [announcementEmbed, responseEmbed] });
@@ -258,8 +265,6 @@ module.exports = {
         const clueId = interaction.options.getInteger(CLUE.COLUMNS.ID, false);
         const huntId = interaction.options.getInteger(CLUE.COLUMNS.HUNT, false);
         const purge = interaction.options.getBoolean("purge");
-
-        console.log(clueId);
 
         const earmarkedClue = clueId
           ? await models.Clue.findByPk(clueId)

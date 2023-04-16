@@ -73,26 +73,28 @@ const DISCORD = {
 
 const COLORS = {
   HUNT_STATUS: {
-    ACTIVE: 0x318f4a,
-    INACTIVE: 0x8f313c,
+    ACTIVE: 0x246b50,
+    INACTIVE: 0x632147,
   },
   CLUE_STATUS: {
-    LOCKED: 0x8f313c,
+    LOCKED: 0x632147,
     UNLOCKED: 0x8f7131,
-    SOLVED: 0x318f4a,
+    SOLVED: 0x246b50,
   },
   NOTIFICATION: 0x313e8f,
   WHISPER: 0x50318f,
 };
 
 const ICONS = {
-  // TODO: Replace everything but skeleton with images i can create the source to
   CORVID_SKELETON: "https://cdn.discordapp.com/emojis/975911441846657124.png",
-  HUNT: "",
-  CLUE: "",
-  NOTIFICATION: "",
-  ANNOUNCEMENT: "",
-  SOLVE: "",
+  HUNT: "https://media.discordapp.net/attachments/1096461558466478141/1097190119968083978/hunt.png",
+  CLUE: "https://media.discordapp.net/attachments/1096461558466478141/1097192112384135228/clue.png",
+  SPARKLES: {
+    BLUE: "https://media.discordapp.net/attachments/1096461558466478141/1097196385658486854/sparkles.png",
+    GREEN:
+      "https://media.discordapp.net/attachments/1096461558466478141/1097196235938598964/sparkles-start.png",
+    RED: "https://media.discordapp.net/attachments/1096461558466478141/1097196261163159652/sparkles-end.png",
+  },
 };
 
 const MESSAGING = {
