@@ -8,6 +8,7 @@ const {
   DISCORD,
   COLORS,
   MESSAGING,
+  ICONS,
 } = require("../../Constants");
 const { HuntEmbed } = require("../../components/HuntEmbed");
 const { NotificationEmbed } = require("../../components/NotificationEmbed");
@@ -162,6 +163,7 @@ module.exports = {
         // Reply
         const announcementEmbed = NotificationEmbed({
           message: `Created new hunt: ${hunt.title}!`,
+          icon: ICONS.SPARKLES.GREEN,
         });
         const responseEmbed = await HuntEmbed(hunt);
         await interaction.reply({ embeds: [announcementEmbed, responseEmbed] });
@@ -231,9 +233,12 @@ module.exports = {
         const hunt = id ? await models.Hunt.findByPk(id) : undefined;
 
         // Argument checks
-        if ((id && !hunt) || hunt.guild !== interaction.member.guild.id) {
+        if (
+          (id && !hunt) ||
+          (hunt && hunt.guild !== interaction.member.guild.id)
+        ) {
           await interaction.reply(
-            `Sorry, I couldn't find a hunt with that ID. Are you sure it was created in ${interaction.member.guild.name}?`
+            `Sorry, I couldn't find a hunt with ID ${id}. Are you sure it was created in ${interaction.member.guild.name}?`
           );
         } else {
           // List
@@ -271,6 +276,7 @@ async function beginHunt(hunt, interaction) {
   // Announce
   const announcementEmbed = NotificationEmbed({
     message: `${hunt.title} has commenced!`,
+    icon: ICONS.SPARKLES.GREEN,
   });
   const responseEmbed = await HuntEmbed(hunt);
   const clueUnlockEmbed = NotificationEmbed({
@@ -296,6 +302,7 @@ async function endHunt(hunt, interaction) {
   // Announce
   const announcementEmbed = NotificationEmbed({
     message: `${hunt.title} has ended!`,
+    icon: ICONS.SPARKLES.RED,
   });
   const responseEmbed = await HuntEmbed(hunt);
   await interaction.reply({
@@ -315,8 +322,8 @@ async function deleteHunt({ interaction, purge, hunt }) {
     // Delete one and reply.
     await hunt.destroy();
     const notificationEmbed = NotificationEmbed({
-      color: COLORS.NOTIFICATION,
       message: `Deleted ${huntName}.`,
+      icon: ICONS.SPARKLES.RED,
     });
     await interaction.reply({ embeds: [notificationEmbed] });
   }
@@ -344,8 +351,8 @@ async function purgeHunts({ interaction, hunt }) {
   const deleteText = `Deleted ${totalDeletedHunts} hunt${pluralize} from ${interaction.member.guild.name}${sparedClause}.`;
 
   const notificationEmbed = NotificationEmbed({
-    color: COLORS.NOTIFICATION,
     message: deleteText,
+    icon: ICONS.SPARKLES.RED,
   });
   const embeds = [notificationEmbed];
   if (hunt) {
