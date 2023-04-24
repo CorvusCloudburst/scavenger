@@ -31,13 +31,13 @@ const HuntEmbed = async function (hunt) {
     },
     fields: [
       {
-        name: "Status",
-        value: hunt.status,
+        name: "ID",
+        value: hunt.id,
         inline: true,
       },
       {
-        name: "ID",
-        value: hunt.id,
+        name: "Status",
+        value: hunt.status,
         inline: true,
       },
       {

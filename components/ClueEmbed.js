@@ -29,13 +29,18 @@ const ClueEmbed = async function (clue) {
     },
     fields: [
       {
-        name: "Status",
-        value: clue.status,
+        name: "ID",
+        value: clue.id,
         inline: true,
       },
       {
-        name: "ID",
-        value: clue.id,
+        name: "Hunt",
+        value: clue.hunt_id,
+        inline: true,
+      },
+      {
+        name: "Status",
+        value: clue.status,
         inline: true,
       },
       {

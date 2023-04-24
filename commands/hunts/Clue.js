@@ -12,12 +12,6 @@ const { ClueEmbed } = require("../../components/ClueEmbed");
 const { NotificationEmbed } = require("../../components/NotificationEmbed");
 const { getUserHandle, getAvatarImageUrl } = require("../../DiscordTools");
 
-/*---------------------------------------------------------------------------------
- *  TODO:
- *   - Ensure that clues may only be guessed while their hunt is active,
- *   as inactive / ended hunts will preserve their state.
- *--------------------------------------------------------------------------------*/
-
 module.exports = {
   data: new SlashCommandBuilder()
     /*---------------------------------------------------------------------------------
@@ -66,7 +60,7 @@ module.exports = {
           option
             .setName(CLUE.COLUMNS.PASSWORD)
             .setDescription("A magic word that solves the clue. (optional)")
-            .setRequired(false)
+            .setRequired(true)
         )
     )
     /*-----------------------------------------------------
@@ -74,7 +68,7 @@ module.exports = {
      *-----------------------------------------------------*/
     .addSubcommand((subcommand) =>
       subcommand
-        .setName(SUBCOMMANDS.CLUE.GUESS)
+        .setName(SUBCOMMANDS.CLUE.SOLVE)
         .setDescription("Guess the magic word.")
         .addIntegerOption((option) =>
           option
@@ -106,6 +100,12 @@ module.exports = {
           option
             .setName(CLUE.COLUMNS.HUNT)
             .setDescription("View all clues in a hunt. (optional)")
+            .setRequired(false)
+        )
+        .addStringOption((option) =>
+          option
+            .setName(CLUE.COLUMNS.STATUS)
+            .setDescription("Only show clues of a specific status. (optional)")
             .setRequired(false)
         )
     )
@@ -155,42 +155,51 @@ module.exports = {
         );
         const password = interaction.options.getString(
           CLUE.COLUMNS.PASSWORD,
-          false
+          true
         );
 
-        // Create clue
-        const hunt = await models.Hunt.findByPk(huntId);
-        const clue = await hunt.createClue({
-          title: title,
-          text: text,
-          status: CLUE.STATUS.LOCKED,
-          password: password,
-        });
-        if (!clue.title) {
-          clue.title = `Clue ${clue.id}`;
+        const hunt = huntId ? await models.Hunt.findByPk(huntId) : undefined;
+        const blockingClue = unlockedBy
+          ? await models.Clue.findByPk(unlockedBy)
+          : undefined;
+
+        // Argument checks
+        if (huntId && !hunt) {
+          await interaction.reply(
+            `Sorry, I couldn't find a hunt with ID ${huntId}. Are you sure it was created in ${interaction.member.guild.name}?`
+          );
+        } else if (unlockedBy && !blockingClue) {
+          await interaction.reply(
+            `Sorry, I couldn't find a clue with ID ${unlockedBy}. Are you sure it was created in ${interaction.member.guild.name}?`
+          );
+        } else {
+          // Create clue
+          const clue = await hunt.createClue({
+            title: title,
+            text: text,
+            status: CLUE.STATUS.LOCKED,
+            password: password,
+          });
+          if (!clue.title) {
+            clue.title = `Clue ${clue.id}`;
+          }
+
+          await clue.save();
+
+          // Respond
+          const announcementEmbed = NotificationEmbed({
+            message: `Created new clue: ${clue.title}!`,
+            icon: ICONS.SPARKLES.GREEN,
+          });
+          const responseEmbed = await ClueEmbed(clue);
+          await interaction.reply({
+            embeds: [announcementEmbed, responseEmbed],
+          });
         }
-
-        // Lock this clue behind another clue, if specified
-        if (unlockedBy) {
-          const blockingClue = unlockedBy
-            ? await models.Clue.findByPk(unlockedBy)
-            : undefined;
-          blockingClue.addUnlocks(clue);
-        }
-
-        await clue.save();
-
-        // Respond
-        const announcementEmbed = NotificationEmbed({
-          message: `Created new clue: ${clue.title}!`,
-          icon: ICONS.SPARKLES.GREEN,
-        });
-        const responseEmbed = await ClueEmbed(clue);
-        await interaction.reply({ embeds: [announcementEmbed, responseEmbed] });
         /*-----------------------------------------------------
          *  RESPONSE: guess
          *-----------------------------------------------------*/
-      } else if (subcommand === SUBCOMMANDS.CLUE.GUESS) {
+      } else if (subcommand === SUBCOMMANDS.CLUE.SOLVE) {
         const clueId = interaction.options.getInteger(CLUE.COLUMNS.ID, true);
         const password = interaction.options.getString(
           CLUE.COLUMNS.PASSWORD,
@@ -202,20 +211,25 @@ module.exports = {
 
         await documentGuess(clue, password, interaction); // TODO: Consider making public shaming (aka guess tracking) optional
 
-        // You can only guess clues in active hunts.
-        if (hunt.status !== HUNT.STATUS.ACTIVE) {
+        // Argument checks
+        if (!clue) {
+          await interaction.reply(
+            `Sorry, I couldn't find a clue with ID ${clueId}. Are you sure it was created in ${interaction.member.guild.name}?`
+          );
+        } else if (hunt.status !== HUNT.STATUS.ACTIVE) {
           await interaction.reply(
             "That clue belongs to an inactive hunt. Either it hasn't begun yet, or it has already ended! To begin a hunt, use `/hunt begin {id}` ."
           );
         } else if (clue.status === CLUE.STATUS.LOCKED) {
           await interaction.reply(`You need to unlock that clue first!`);
+          // Attempt to solve
         } else if (isCorrectGuess(clue, password)) {
           await solveClue(clue, interaction);
         } else {
           const notificationEmbed = NotificationEmbed({
             message: `${getUserHandle(
               interaction
-            )} failed to guess the password. Too bad!`,
+            )} failed to solve clue. Too bad!`,
             icon: getAvatarImageUrl(interaction.member),
           });
           await interaction.reply({ embeds: [notificationEmbed] });
@@ -226,45 +240,28 @@ module.exports = {
       } else if (subcommand === SUBCOMMANDS.CLUE.LIST) {
         const clueId = interaction.options.getInteger(CLUE.COLUMNS.ID, false);
         const huntId = interaction.options.getInteger(CLUE.COLUMNS.HUNT, false);
-        const clues = [];
+        const statusArg = interaction.options.getInteger(
+          CLUE.COLUMNS.STATUS,
+          false
+        );
 
-        if (clueId) {
-          // Fetch one clue
-          const clue = await models.Clue.findByPk(clueId);
-          clues.push(clue);
-        } else if (huntId) {
-          // Scope by hunt
-          const huntClues = await models.Clue.findAll({
-            where: { hunt_id: huntId },
-          });
-          huntClues.forEach((clue) => clues.push(clue));
-        } else {
-          // All clues on server.
-          const serverClues = await models.Clue.findAll({
-            include: { model: models.Hunt, required: true },
-          });
-          for (const clue of serverClues) {
-            const hunt = await clue.getHunt();
-            if (hunt.guild === interaction.member.guild.id) {
-              clues.push(clue);
-            }
-          }
-        }
+        const clue = clueId ? await models.Clue.findByPk(clueId) : undefined;
+        const hunt = huntId ? await models.Hunt.findByPk(huntId) : undefined;
+        const status = ""; // TODO
 
-        // Check clues were found
-        if (!clues.length) {
+        // Argument checks
+        if (clueId && !clue) {
           await interaction.reply(
-            "Could not find any matching clues on this server. Try widening your search!"
+            `Sorry, I couldn't find a clue with ID ${clueId}. Are you sure it was created in ${interaction.member.guild.name}?`
           );
+        } else if (huntId && !hunt) {
+          await interaction.reply(
+            `Sorry, I couldn't find a hunt with ID ${huntId}. Are you sure it was created in ${interaction.member.guild.name}?`
+          );
+        } else if (statusArg) {
+          // TODO: check status is valid
         } else {
-          // Generate embeds
-          const clueEmbeds = [];
-          for (const clue of clues) {
-            const embed = await ClueEmbed(clue);
-            clueEmbeds.push(embed);
-          }
-          // Reply
-          await interaction.reply({ embeds: clueEmbeds });
+          await listClues({ interaction, clueId, huntId });
         }
         /*-----------------------------------------------------
          *  RESPONSE: delete
@@ -329,6 +326,10 @@ module.exports = {
 /*---------------------------------------------------------------------------------
  *  HELPER FUNCTIONS
  *--------------------------------------------------------------------------------*/
+
+/*
+ *  Sets the clue to SOLVED, and updates all unblocked clues to UNLOCKED status.
+ */
 async function solveClue(clue, interaction) {
   // Update status
   clue.status = CLUE.STATUS.SOLVED;
@@ -364,6 +365,52 @@ async function solveClue(clue, interaction) {
 
   // Respond
   await interaction.reply({ embeds: embeds });
+}
+
+/*
+ *  Lists clues
+ */
+async function listClues({ interaction, clueId, huntId }) {
+  const clues = [];
+
+  if (clueId) {
+    // Fetch one clue
+    const clue = await models.Clue.findByPk(clueId);
+    clues.push(clue);
+  } else if (huntId) {
+    // Scope by hunt
+    const huntClues = await models.Clue.findAll({
+      where: { hunt_id: huntId },
+    });
+    huntClues.forEach((clue) => clues.push(clue));
+  } else {
+    // All clues on server.
+    const serverClues = await models.Clue.findAll({
+      include: { model: models.Hunt, required: true },
+    });
+    for (const clue of serverClues) {
+      const hunt = await clue.getHunt();
+      if (hunt.guild === interaction.member.guild.id) {
+        clues.push(clue);
+      }
+    }
+  }
+
+  // Check clues were found
+  if (!clues.length) {
+    await interaction.reply(
+      "Could not find any matching clues on this server. Try widening your search!"
+    );
+  } else {
+    // Generate embeds
+    const clueEmbeds = [];
+    for (const clue of clues) {
+      const embed = await ClueEmbed(clue);
+      clueEmbeds.push(embed);
+    }
+    // Reply
+    await interaction.reply({ embeds: clueEmbeds });
+  }
 }
 
 async function documentGuess(clue, password, interaction) {

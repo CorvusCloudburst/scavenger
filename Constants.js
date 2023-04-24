@@ -14,7 +14,7 @@ const SUBCOMMANDS = {
   },
   CLUE: {
     CREATE: "create",
-    GUESS: "guess",
+    SOLVE: "solve",
     LIST: "list",
     DELETE: "delete",
   },
