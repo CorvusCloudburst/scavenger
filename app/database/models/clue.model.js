@@ -1,4 +1,4 @@
-const { CLUE, DISCORD} = require("../../Constants");
+const { CLUE, DISCORD } = require("../../Constants");
 module.exports = function (sequelize, DataTypes) {
   return sequelize.define(
     "Clue",
@@ -36,16 +36,22 @@ module.exports = function (sequelize, DataTypes) {
         unique: false,
         field: CLUE.COLUMNS.PASSWORD,
       },
-        thumbnail: {
-            type: DataTypes.STRING,
-            allowNull: true,
-            field: DISCORD.EMBED.THUMBNAIL,
-        },
-        image: {
-            type: DataTypes.STRING,
-            allowNull: true,
-            field: DISCORD.EMBED.IMAGE,
-        },
+      thumbnail: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: DISCORD.EMBED.THUMBNAIL,
+      },
+      image: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: DISCORD.EMBED.IMAGE,
+      },
+      guild: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: false,
+        field: DISCORD.GUILD,
+      },
     },
     {
       timestamps: false,

@@ -11,6 +11,8 @@ const {
 const { ClueEmbed } = require("../../components/ClueEmbed");
 const { NotificationEmbed } = require("../../components/NotificationEmbed");
 const { getUserHandle, getAvatarImageUrl } = require("../../DiscordTools");
+const { getMatchingClueStatus } = require("../../Utility");
+const { HuntEmbed } = require("../../components/HuntEmbed");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -36,6 +38,12 @@ module.exports = {
         )
         .addStringOption((option) =>
           option
+            .setName(CLUE.COLUMNS.PASSWORD)
+            .setDescription("A magic word that solves the clue. (optional)")
+            .setRequired(true)
+        )
+        .addStringOption((option) =>
+          option
             .setName(CLUE.COLUMNS.TITLE)
             .setDescription("A title for your clue. (optional)")
             .setRequired(false)
@@ -55,12 +63,6 @@ module.exports = {
               "The id of a clue that must be solved before this one is visible. (optional)"
             )
             .setRequired(false)
-        )
-        .addStringOption((option) =>
-          option
-            .setName(CLUE.COLUMNS.PASSWORD)
-            .setDescription("A magic word that solves the clue. (optional)")
-            .setRequired(true)
         )
     )
     /*-----------------------------------------------------
@@ -179,6 +181,7 @@ module.exports = {
             text: text,
             status: CLUE.STATUS.LOCKED,
             password: password,
+            guild: interaction.guild.id,
           });
           if (!clue.title) {
             clue.title = `Clue ${clue.id}`;
@@ -240,14 +243,14 @@ module.exports = {
       } else if (subcommand === SUBCOMMANDS.CLUE.LIST) {
         const clueId = interaction.options.getInteger(CLUE.COLUMNS.ID, false);
         const huntId = interaction.options.getInteger(CLUE.COLUMNS.HUNT, false);
-        const statusArg = interaction.options.getInteger(
+        const statusArg = interaction.options.getString(
           CLUE.COLUMNS.STATUS,
           false
         );
 
         const clue = clueId ? await models.Clue.findByPk(clueId) : undefined;
         const hunt = huntId ? await models.Hunt.findByPk(huntId) : undefined;
-        const status = ""; // TODO
+        const status = getMatchingClueStatus(statusArg);
 
         // Argument checks
         if (clueId && !clue) {
@@ -258,10 +261,12 @@ module.exports = {
           await interaction.reply(
             `Sorry, I couldn't find a hunt with ID ${huntId}. Are you sure it was created in ${interaction.member.guild.name}?`
           );
-        } else if (statusArg) {
-          // TODO: check status is valid
+        } else if (statusArg && !status) {
+          await interaction.reply(
+            `Sorry, I couldn't find a matching clue status for '${statusArg}'. Did you type that correctly?`
+          );
         } else {
-          await listClues({ interaction, clueId, huntId });
+          await listClues({ interaction, clueId, huntId, status });
         }
         /*-----------------------------------------------------
          *  RESPONSE: delete
@@ -274,46 +279,25 @@ module.exports = {
         const earmarkedClue = clueId
           ? await models.Clue.findByPk(clueId)
           : null;
-        const clueTitle = earmarkedClue?.title;
-
-        // Ensure we're only modifying hunts from this server
         const hunt = huntId ? await models.Hunt.findByPk(huntId) : null;
-        if (hunt && hunt?.guild !== interaction.member.guild.id) {
+
+        // Argument checks
+        if (clueId && !earmarkedClue) {
+          await interaction.reply(
+            `Sorry, I couldn't find a clue with ID ${clueId}. Are you sure it was created in ${interaction.member.guild.name}?`
+          );
+        } else if (huntId && !hunt) {
+          await interaction.reply(
+            `Sorry, I couldn't find a hunt with ID ${huntId}. Are you sure it was created in ${interaction.member.guild.name}?`
+          );
+        } else if (hunt && hunt?.guild !== interaction.member.guild.id) {
+          // Ensure we're only modifying hunts from this server
           await interaction.reply(
             `${hunt.title} is managed by another server.`
           );
         } else {
-          if (purge) {
-            // Delete all clues on server
-            const serverClues = await models.Clue.findAll({
-              include: { model: models.Hunt, required: true },
-            });
-            for (const clue of serverClues) {
-              const clueHunt = await clue.getHunt();
-              if (
-                clueHunt.guild === interaction.member.guild.id &&
-                clue.id !== clueId &&
-                clue.hunt_id !== huntId
-              ) {
-                await clue.destroy();
-              }
-            }
-            await interaction.reply(`Deleted all clues.`);
-          } else if (huntId) {
-            // Delete all clues in hunt
-            const cluesByHunt = await hunt.getClues();
-            for (const deletedClue in cluesByHunt) {
-              if (deletedClue.id !== clueId) {
-                await deletedClue.destroy();
-              }
-            }
-
-            await interaction.reply(`Deleted all clues in ${hunt.title}.`);
-          } else if (clueId) {
-            // Delete individual clue
-            await earmarkedClue.destroy();
-            await interaction.reply(`${clueTitle} has been deleted.`);
-          }
+          // Deletes
+          await deleteClues({ interaction, earmarkedClue, hunt, purge });
         }
       }
     } catch (error) {
@@ -370,46 +354,132 @@ async function solveClue(clue, interaction) {
 /*
  *  Lists clues
  */
-async function listClues({ interaction, clueId, huntId }) {
+async function listClues({ interaction, clueId, huntId, status }) {
+  // List of clues to return
   const clues = [];
 
+  // Get the clues
   if (clueId) {
-    // Fetch one clue
+    // Fetch one specific clue
     const clue = await models.Clue.findByPk(clueId);
     clues.push(clue);
-  } else if (huntId) {
-    // Scope by hunt
-    const huntClues = await models.Clue.findAll({
-      where: { hunt_id: huntId },
-    });
-    huntClues.forEach((clue) => clues.push(clue));
   } else {
-    // All clues on server.
+    // All possible clues on server.
     const serverClues = await models.Clue.findAll({
       include: { model: models.Hunt, required: true },
+      where: { guild: interaction.guild.id },
     });
-    for (const clue of serverClues) {
-      const hunt = await clue.getHunt();
-      if (hunt.guild === interaction.member.guild.id) {
-        clues.push(clue);
-      }
+
+    if (huntId) {
+      // Scope by hunt
+      serverClues.forEach((clue) => {
+        if (clue.hunt_id === huntId) {
+          clues.push(clue);
+        }
+      });
+    } else {
+      // Check all possible clues
+      clues.push(...serverClues);
     }
   }
 
+  // Filter the results if indicated
+  const filteredClues = [];
+  if (status) {
+    filteredClues.push(...clues.filter((clue) => clue.status === status));
+  } else {
+    filteredClues.push(...clues);
+  }
+
   // Check clues were found
-  if (!clues.length) {
+  if (!filteredClues.length) {
     await interaction.reply(
       "Could not find any matching clues on this server. Try widening your search!"
     );
   } else {
     // Generate embeds
     const clueEmbeds = [];
-    for (const clue of clues) {
+    for (const clue of filteredClues) {
       const embed = await ClueEmbed(clue);
       clueEmbeds.push(embed);
     }
     // Reply
     await interaction.reply({ embeds: clueEmbeds });
+  }
+}
+
+/*
+ *  Deletes clues
+ */
+async function deleteClues({ interaction, earmarkedClue, hunt, purge }) {
+  const totalHuntClues = (await hunt?.getClues())?.length;
+  const pluralizeTotalHuntClues = totalHuntClues > 1 ? "s" : "";
+  if (purge) {
+    // Delete all clues on server
+    const serverClues = await models.Clue.findAll({
+      include: { model: models.Hunt, required: true },
+      where: { guild: interaction.guild.id },
+    });
+    const totalClues = serverClues.length;
+    for (const clue of serverClues) {
+      if (clue.id !== earmarkedClue?.id && clue.hunt_id !== hunt?.id) {
+        await clue.destroy();
+      }
+    }
+
+    // Reply
+    const totalDeletedClues = earmarkedClue ? totalClues - 1 : totalClues;
+    const and = earmarkedClue && hunt ? "and " : "";
+    const sparedClue = earmarkedClue ? `, sparing ${earmarkedClue.title}` : "";
+    const sparedHunt = hunt
+      ? `, ${and}sparing ${totalHuntClues} clue${pluralizeTotalHuntClues} from ${hunt.title}`
+      : "";
+    const pluralize = totalDeletedClues > 1 ? "s" : "";
+    const deleteText = `Deleted ${totalDeletedClues} clue${pluralize} from ${interaction.member.guild.name}${sparedClue}${sparedHunt}.`;
+
+    const notificationEmbed = NotificationEmbed({
+      message: deleteText,
+      icon: ICONS.SPARKLES.RED,
+    });
+    const embeds = [notificationEmbed];
+    if (hunt) {
+      const huntEmbed = await HuntEmbed(hunt);
+      embeds.push(huntEmbed);
+    }
+    if (earmarkedClue) {
+      const clueEmbed = await ClueEmbed(earmarkedClue);
+      embeds.push(clueEmbed);
+    }
+    interaction.reply({ embeds: embeds });
+  } else if (hunt) {
+    // Delete all clues in hunt
+    const cluesByHunt = await hunt.getClues();
+    for (const deletedClue of cluesByHunt) {
+      if (deletedClue.id !== earmarkedClue?.id) {
+        await deletedClue.destroy();
+      }
+    }
+    const sparedClue = earmarkedClue ? `, sparing ${earmarkedClue.title}` : "";
+    const notificationEmbed = NotificationEmbed({
+      message: `Deleted ${totalHuntClues} clue${pluralizeTotalHuntClues} from ${hunt.title}${sparedClue}.`,
+      icon: ICONS.SPARKLES.RED,
+    });
+    const embeds = [notificationEmbed];
+    const huntEmbed = await HuntEmbed(hunt);
+    embeds.push(huntEmbed);
+    if (earmarkedClue) {
+      const clueEmbed = await ClueEmbed(earmarkedClue);
+      embeds.push(clueEmbed);
+    }
+    await interaction.reply({ embeds: [embeds] });
+  } else if (earmarkedClue) {
+    // Delete individual clue
+    await earmarkedClue.destroy();
+    const notificationEmbed = NotificationEmbed({
+      message: `Deleted ${earmarkedClue.title}.`,
+      icon: ICONS.SPARKLES.RED,
+    });
+    await interaction.reply({ embeds: [notificationEmbed] });
   }
 }
 

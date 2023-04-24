@@ -19,6 +19,6 @@
   "scripts": {
     "deploy:test": "node update-scripts/deploy-commands-test.js",
     "deploy:global": "node update-scripts/deploy-commands.js",
-    "start": "node index.js"
+    "start": "node app/index.js"
   }
 }
