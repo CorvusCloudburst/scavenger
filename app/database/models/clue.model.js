@@ -52,6 +52,16 @@ module.exports = function (sequelize, DataTypes) {
         unique: false,
         field: DISCORD.GUILD,
       },
+      solved_by: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: CLUE.COLUMNS.SOLVED_BY,
+      },
+      chosen_one: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        field: CLUE.COLUMNS.CHOSEN_ONE,
+      },
     },
     {
       timestamps: false,

@@ -373,11 +373,21 @@ async function listHunt({ interaction, hunt }) {
     await interaction.reply({ embeds: [embed] });
   } else {
     // Fetch all hunts.
-    const hunts = await models.Hunt.findAll({ include: models.Clue });
+    const hunts = await models.Hunt.findAll({
+      where: { guild: interaction.guild.id },
+      include: models.Clue,
+    });
     const embeds = [];
     for (const hunt of hunts) {
       const view = await HuntEmbed(hunt);
       embeds.push(view);
+    }
+    if (embeds.length < 1) {
+      embeds.push(
+        NotificationEmbed({
+          message: `${interaction.member.guild.name} does not currently have any hunts.`,
+        })
+      );
     }
     await interaction.reply({ embeds: embeds });
   }

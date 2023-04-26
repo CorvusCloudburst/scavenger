@@ -45,6 +45,9 @@ const CLUE = {
     PASSWORD: "password",
     HUNT: "hunt_id",
     UNLOCKED_BY: "unlocked_by",
+    SOLVED_BY: "solved_by",
+    CHOSEN_ONE: "chosen_one",
+    EPHEMERAL: "ephemeral",
   },
   STATUS: {
     LOCKED: "LOCKED",

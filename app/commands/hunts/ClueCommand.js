@@ -31,15 +31,13 @@ module.exports = {
         .addIntegerOption((option) =>
           option
             .setName(CLUE.COLUMNS.HUNT)
-            .setDescription(
-              "The ID of the hunt this clue should be added to. (required)"
-            )
+            .setDescription("The ID of the hunt this clue should be added to.")
             .setRequired(true)
         )
         .addStringOption((option) =>
           option
             .setName(CLUE.COLUMNS.PASSWORD)
-            .setDescription("A magic word that solves the clue. (optional)")
+            .setDescription("A secret magic word that solves the clue.")
             .setRequired(true)
         )
         .addStringOption((option) =>
@@ -61,6 +59,14 @@ module.exports = {
             .setName(CLUE.COLUMNS.UNLOCKED_BY)
             .setDescription(
               "The id of a clue that must be solved before this one is visible. (optional)"
+            )
+            .setRequired(false)
+        )
+        .addStringOption((option) =>
+          option
+            .setName(CLUE.COLUMNS.CHOSEN_ONE)
+            .setDescription(
+              "Only the chosen one can solve this clue. (optional)"
             )
             .setRequired(false)
         )
@@ -159,6 +165,10 @@ module.exports = {
           CLUE.COLUMNS.PASSWORD,
           true
         );
+        const chosenOne = interaction.options.getString(
+          CLUE.COLUMNS.CHOSEN_ONE,
+          false
+        );
 
         const hunt = huntId ? await models.Hunt.findByPk(huntId) : undefined;
         const blockingClue = unlockedBy
@@ -182,11 +192,12 @@ module.exports = {
             status: CLUE.STATUS.LOCKED,
             password: password,
             guild: interaction.guild.id,
+            chosen_one: chosenOne,
+            unlocked_by: blockingClue ? blockingClue.id : undefined,
           });
           if (!clue.title) {
             clue.title = `Clue ${clue.id}`;
           }
-
           await clue.save();
 
           // Respond
@@ -212,7 +223,7 @@ module.exports = {
         const clue = await models.Clue.findByPk(clueId);
         const hunt = await clue.getHunt();
 
-        await documentGuess(clue, password, interaction); // TODO: Consider making public shaming (aka guess tracking) optional
+        await documentGuess(clue, password, interaction);
 
         // Argument checks
         if (!clue) {
@@ -225,6 +236,11 @@ module.exports = {
           );
         } else if (clue.status === CLUE.STATUS.LOCKED) {
           await interaction.reply(`You need to unlock that clue first!`);
+        } else if (
+          clue.chosen_one &&
+          clue.chosen_one !== interaction.user.toString()
+        ) {
+          await interaction.reply(`Only the Chosen One may solve this clue.`);
           // Attempt to solve
         } else if (isCorrectGuess(clue, password)) {
           await solveClue(clue, interaction);
@@ -317,6 +333,9 @@ module.exports = {
 async function solveClue(clue, interaction) {
   // Update status
   clue.status = CLUE.STATUS.SOLVED;
+  clue.solved_by = clue.solved_by
+    ? clue.solved_by
+    : interaction.user.toString();
   clue.save();
 
   // Unlock clues that were waiting on this one.
