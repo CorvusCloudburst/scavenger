@@ -12,7 +12,7 @@ Clone this project. In your project root folder, run:
 npm install
 ```
 
-If you already have an application and bot user set up on Discord, you can skip past the next section and pick up with [Running scavenger](###-running-scavenger).
+If you already have an application and bot user set up on Discord, you can skip past the next section and pick up with [Running scavenger](#running-scavenger).
 
 ### Creating a Discord application and bot user
 
@@ -42,7 +42,7 @@ The application will start. You should now see the bot as logged in on your serv
 
 ### Hunts
 
-A **Hunt** is the central event this bot is built to run. It will contain one or more [**Clues**](###-clues).
+A **Hunt** is the central event this bot is built to run. It will contain one or more [**Clues**](#clues).
 The following commands allow you to set up and interact with a Hunt:
 
 - `hunt create` : This command creates a Hunt. The Hunt will start off in the **INACTIVE** state so you can modify it as needed before your server members are able to interact with it.
@@ -67,7 +67,7 @@ The following commands allow you to set up and interact with a Hunt:
 
 ### Clues
 
-A **Clue** is a challenge that your players must overcome to advance in a [**Hunt**](###-hunts).
+A **Clue** is a challenge that your players must overcome to advance in a [**Hunt**](#hunts).
 
 The following commands allow you to set up and interact with a Clue:
 
