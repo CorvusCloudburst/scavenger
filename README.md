@@ -103,8 +103,6 @@ The following commands allow you to set up and interact with a Clue:
 
 ## Code Changes
 
-Feel free to fork this repo and modify it for your own use case!
-
 If you add, remove, or modify a command, you will need to deploy your new commands so that the Discord API knows how to handle them.
 
 To deploy your commands for use on your personal server, use:
